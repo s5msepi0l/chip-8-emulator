@@ -74,10 +74,8 @@ namespace chip_8 {
 		bool quit = false;
 
 		void update() {
-			// Poll SDL events
-			SDL_PumpEvents(); // Updates the event queue
+			SDL_PumpEvents();
 
-			// Map keys to corresponding positions in the keys array (CHIP-8 key mapping)
 			keys[0x1] = is_key_down(SDL_SCANCODE_1);
 			keys[0x2] = is_key_down(SDL_SCANCODE_2);
 			keys[0x3] = is_key_down(SDL_SCANCODE_3);
@@ -110,10 +108,9 @@ namespace chip_8 {
 		SDL_Window* window;
 		SDL_Renderer* renderer;
 
-		bool pixel_state[SCREEN_WIDTH][SCREEN_HEIGHT]{ {false} };  // Array to track pixel set state
+		bool pixel_state[SCREEN_WIDTH][SCREEN_HEIGHT]{ {false} };
 
 	public:
-		// Constructor: Initialize SDL, create window, and renderer
 		screen(const char* name, uint32_t width = SCREEN_WIDTH * SCALE_FACTOR, uint32_t height = SCREEN_HEIGHT * SCALE_FACTOR) {
 			if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 				std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
@@ -136,12 +133,10 @@ namespace chip_8 {
 			}
 		}
 
-		// Start rendering (clear screen)
 		void render_start() {
 			SDL_RenderClear(renderer);
 		}
 
-		// Stop rendering (present the updated screen)
 		void render_stop() {
 			for (uint8_t i = 0; i < SCREEN_WIDTH; i++) {
 				for (uint8_t j = 0; j < SCREEN_HEIGHT; j++) {
@@ -154,20 +149,17 @@ namespace chip_8 {
 			SDL_RenderPresent(renderer);
 		}
 
-		// Edit a pixel color using r, g, b values and a default alpha of 255
 		inline void pixel_edit(uint8_t r, uint8_t g, uint8_t b) {
 			SDL_SetRenderDrawColor(renderer, r, g, b, 255);
 		}
 
-		// Draw a pixel on the scaled window (treating it as a 64x32 grid)
 		void draw_pixel(uint8_t x, uint8_t y) {
 			if (x < SCREEN_WIDTH && y < SCREEN_HEIGHT) {
-				// Scale the coordinates by the scale factor (16x)
 				SDL_Rect pixelRect = {
-					static_cast<int>(x * SCALE_FACTOR),  // Scaled x coordinate
-					static_cast<int>(y * SCALE_FACTOR),  // Scaled y coordinate
-					SCALE_FACTOR,  // Width of the pixel block
-					SCALE_FACTOR   // Height of the pixel block
+					static_cast<int>(x * SCALE_FACTOR),
+					static_cast<int>(y * SCALE_FACTOR),
+					SCALE_FACTOR,  
+					SCALE_FACTOR   
 				};
 				SDL_RenderFillRect(renderer, &pixelRect);
 			}
@@ -187,37 +179,31 @@ namespace chip_8 {
 			return false;
 		}
 
-		// Draw the sprite at the given (X, Y) position
 		bool draw_sprite(uint8_t x, uint8_t y, std::vector<uint8_t>& sprite, uint8_t n) {
-			bool pixelOverwritten = false;  // Flag to track if any pixel was overwritten
+			bool pixel_overwritten = false;
 
 			for (uint8_t row = 0; row < n; ++row) {
-				uint8_t spriteRow = sprite[row];
+				uint8_t sprite_row = sprite[row];
 				for (uint8_t col = 0; col < 8; ++col) {
-					if ((spriteRow & (0x80 >> col)) != 0) {  // If the pixel is set in the sprite
-						uint8_t pixelX = (x + col) % SCREEN_WIDTH;
-						uint8_t pixelY = (y + row) % SCREEN_HEIGHT;
+					if ((sprite_row & (0x80 >> col)) != 0) {
+						uint8_t pixel_x = (x + col) % SCREEN_WIDTH;
+						uint8_t pixel_y = (y + row) % SCREEN_HEIGHT;
 
-						// Check if the pixel is being overwritten
-						if (set_pixel(pixelX, pixelY)) {
-							// Pixel was flipped (set to 0 after being 1), so set pixelOverwritten flag
-							pixelOverwritten = true;
+						if (set_pixel(pixel_x, pixel_y)) {
+							pixel_overwritten = true;
 						}
 
-						// Draw the pixel as set (typically white)
-						draw_pixel(pixelX, pixelY);
+						draw_pixel(pixel_x, pixel_x);
 					}
 				}
 			}
 
-			return pixelOverwritten;  // Return whether any pixel was overwritten
+			return pixel_overwritten;
 		}
 
-		// Clear the screen (reset to black and reset pixelState)
 		void clear() {
 			SDL_RenderClear(renderer);
 
-			// Reset the pixelState array
 			for (int i = 0; i < SCREEN_WIDTH; ++i) {
 				for (int j = 0; j < SCREEN_HEIGHT; ++j) {
 					pixel_state[i][j] = false;
@@ -225,7 +211,6 @@ namespace chip_8 {
 			}
 		}
 
-		// Destructor: Clean up SDL resources
 		~screen() {
 			SDL_DestroyRenderer(renderer);
 			SDL_DestroyWindow(window);
