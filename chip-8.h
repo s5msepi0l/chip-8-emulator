@@ -216,7 +216,7 @@ namespace chip_8 {
 
 		bool is_key_down(SDL_Scancode scancode) {
 			const uint8_t* state = SDL_GetKeyboardState(NULL);
-			return state[scancode] != 0; // Return true if the key is pressed
+			return state[scancode] != 0; // return true if the key is pressed
 		}
 	};
 
@@ -226,10 +226,9 @@ namespace chip_8 {
 		SDL_Window* window;
 		SDL_Renderer* renderer;
 
-		bool pixel_state[SCREEN_WIDTH][SCREEN_HEIGHT]{ {false} };  // Array to track pixel set state
+		bool pixel_state[SCREEN_WIDTH][SCREEN_HEIGHT]{ {false} };
 
 	public:
-		// Constructor: Initialize SDL, create window, and renderer
 		screen(const char* name, uint32_t width = SCREEN_WIDTH * SCALE_FACTOR, uint32_t height = SCREEN_HEIGHT * SCALE_FACTOR) {
 			if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 				std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
@@ -251,14 +250,10 @@ namespace chip_8 {
 				throw std::runtime_error("Renderer creation failed");
 			}
 		}
-
-		// Start rendering (clear screen)
 		void render_start() {
 			SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 			SDL_RenderClear(renderer);
 		}
-
-		// Stop rendering (present the updated screen)
 		void render_stop() {
 			pixel_edit(255, 255, 255);
 			for (uint8_t i = 0; i < SCREEN_WIDTH; i++) {
