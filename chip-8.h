@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ctime>
 #include <iomanip>
+#include <fstream>
 
 #include <Windows.h>
 #include <SDL.h>
@@ -17,19 +18,45 @@
 #define GET_NIB(instruction, index) (((instruction) >> ((3 - (index)) * 4)) & 0xF)
 
 //get last 3 nibs, usually address pointer
-#define GET_NIB3(instruction) GET_NIB(instruction, 1) | \
-	GET_NIB(instruction, 2) |							   \
-	GET_NIB(instruction, 3)
+#define GET_NIB3(instruction) ((GET_NIB(instruction, 1) << 8) | \
+                               (GET_NIB(instruction, 2) << 4) | \
+                               (GET_NIB(instruction, 3)))
 
-
-#define N_SYS_MEMORY 4096
-#define N_STACK		 16
-#define N_V_REGISTER 16
-#define PROG_START  0x200
+#define N_SYS_MEMORY  4096
+#define N_STACK		  16
+#define N_V_REGISTER  16
+#define PROG_START    0x200
 
 #define SCREEN_WIDTH  64
 #define SCREEN_HEIGHT 32
 #define SCALE_FACTOR  16
+
+#define N_KEYS		  16
+
+#ifndef CYCLE_RATE
+#define CYCLE_RATE 16 //ms
+
+#endif
+
+uint8_t font_set[] = {
+	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+	0x20, 0x60, 0x20, 0x20, 0x70, // 1
+	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+};
+
 
 namespace chip_8 {
 	class memory {
@@ -40,6 +67,10 @@ namespace chip_8 {
 		uint8_t* sys_memory;
 
 	public:
+
+		//where does .data begin and .text end
+		uint32_t data_pos = 0;
+
 		memory(uint8_t *init_mem) {
 			sys_memory = new uint8_t[N_SYS_MEMORY];
 		
@@ -70,7 +101,7 @@ namespace chip_8 {
 
 	class keyboard_input {
 	public:
-		bool keys[16] = { false };
+		bool keys[N_KEYS] = { false };
 		bool quit = false;
 
 		void update() {
@@ -96,8 +127,95 @@ namespace chip_8 {
 			quit	  = is_key_down(SDL_SCANCODE_ESCAPE);
 		}
 
+		// If something is using 40% of the cpu this is probably it :3
+		void io_block_update() {
+			SDL_Event event;
+
+			bool keyPressed = false;
+			while (!keyPressed) {
+				SDL_WaitEvent(&event);
+
+				if (event.type == SDL_KEYDOWN) {
+					SDL_Keysym keysym = event.key.keysym;
+					switch (keysym.sym) {
+					case SDLK_1:
+						keys[0x1] = true;
+						keyPressed = true;
+						break;
+					case SDLK_2:
+						keys[0x2] = true;
+						keyPressed = true;
+						break;
+					case SDLK_3:
+						keys[0x3] = true;
+						keyPressed = true;
+						break;
+					case SDLK_4:
+						keys[0xC] = true;
+						keyPressed = true;
+						break;
+					case SDLK_q:
+						keys[0x4] = true;
+						keyPressed = true;
+						break;
+					case SDLK_w:
+						keys[0x5] = true;
+						keyPressed = true;
+						break;
+					case SDLK_e:
+						keys[0x6] = true;
+						keyPressed = true;
+						break;
+					case SDLK_r:
+						keys[0xD] = true;
+						keyPressed = true;
+						break;
+					case SDLK_a:
+						keys[0x7] = true;
+						keyPressed = true;
+						break;
+					case SDLK_s:
+						keys[0x8] = true;
+						keyPressed = true;
+						break;
+					case SDLK_d:
+						keys[0x9] = true;
+						keyPressed = true;
+						break;
+					case SDLK_f:
+						keys[0xE] = true;
+						keyPressed = true;
+						break;
+					case SDLK_z:
+						keys[0xA] = true;
+						keyPressed = true;
+						break;
+					case SDLK_x:
+						keys[0x0] = true;
+						keyPressed = true;
+						break;
+					case SDLK_c:
+						keys[0xB] = true;
+						keyPressed = true;
+						break;
+					case SDLK_v:
+						keys[0xF] = true;
+						keyPressed = true;
+						break;
+					case SDLK_ESCAPE:
+						quit = true;
+						keyPressed = true;
+						break;
+					default:
+						break;
+					}
+				}
+			}
+		}
+
+
 		bool is_key_down(SDL_Scancode scancode) {
-			const Uint8* state = SDL_GetKeyboardState(NULL);
+			const uint8_t* state = SDL_GetKeyboardState(NULL);
 			return state[scancode] != 0; // Return true if the key is pressed
 		}
 	};
@@ -108,9 +226,10 @@ namespace chip_8 {
 		SDL_Window* window;
 		SDL_Renderer* renderer;
 
-		bool pixel_state[SCREEN_WIDTH][SCREEN_HEIGHT]{ {false} };
+		bool pixel_state[SCREEN_WIDTH][SCREEN_HEIGHT]{ {false} };  // Array to track pixel set state
 
 	public:
+		// Constructor: Initialize SDL, create window, and renderer
 		screen(const char* name, uint32_t width = SCREEN_WIDTH * SCALE_FACTOR, uint32_t height = SCREEN_HEIGHT * SCALE_FACTOR) {
 			if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 				std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
@@ -133,15 +252,20 @@ namespace chip_8 {
 			}
 		}
 
+		// Start rendering (clear screen)
 		void render_start() {
+			SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 			SDL_RenderClear(renderer);
 		}
 
+		// Stop rendering (present the updated screen)
 		void render_stop() {
+			pixel_edit(255, 255, 255);
 			for (uint8_t i = 0; i < SCREEN_WIDTH; i++) {
 				for (uint8_t j = 0; j < SCREEN_HEIGHT; j++) {
-					if (pixel_state) {
+					if (pixel_state[i][j]) {
 						this->draw_pixel(i, j);
+
 					}
 				}
 			}
@@ -149,17 +273,20 @@ namespace chip_8 {
 			SDL_RenderPresent(renderer);
 		}
 
+		// Edit a pixel color using r, g, b values and a default alpha of 255
 		inline void pixel_edit(uint8_t r, uint8_t g, uint8_t b) {
 			SDL_SetRenderDrawColor(renderer, r, g, b, 255);
 		}
 
+		// Draw a pixel on the scaled window (treating it as a 64x32 grid)
 		void draw_pixel(uint8_t x, uint8_t y) {
 			if (x < SCREEN_WIDTH && y < SCREEN_HEIGHT) {
+				// Scale the coordinates by the scale factor (16x)
 				SDL_Rect pixelRect = {
-					static_cast<int>(x * SCALE_FACTOR),
-					static_cast<int>(y * SCALE_FACTOR),
-					SCALE_FACTOR,  
-					SCALE_FACTOR   
+					static_cast<int>(x * SCALE_FACTOR),  // Scaled x coordinate
+					static_cast<int>(y * SCALE_FACTOR),  // Scaled y coordinate
+					SCALE_FACTOR,  // Width of the pixel block
+					SCALE_FACTOR   // Height of the pixel block
 				};
 				SDL_RenderFillRect(renderer, &pixelRect);
 			}
@@ -179,31 +306,37 @@ namespace chip_8 {
 			return false;
 		}
 
+		// Draw the sprite at the given (X, Y) position
 		bool draw_sprite(uint8_t x, uint8_t y, std::vector<uint8_t>& sprite, uint8_t n) {
-			bool pixel_overwritten = false;
+			bool pixelOverwritten = false;  // Flag to track if any pixel was overwritten
 
 			for (uint8_t row = 0; row < n; ++row) {
-				uint8_t sprite_row = sprite[row];
+				uint8_t spriteRow = sprite[row];
 				for (uint8_t col = 0; col < 8; ++col) {
-					if ((sprite_row & (0x80 >> col)) != 0) {
-						uint8_t pixel_x = (x + col) % SCREEN_WIDTH;
-						uint8_t pixel_y = (y + row) % SCREEN_HEIGHT;
+					if ((spriteRow & (0x80 >> col)) != 0) {  // If the pixel is set in the sprite
+						uint8_t pixelX = (x + col) % SCREEN_WIDTH;
+						uint8_t pixelY = (y + row) % SCREEN_HEIGHT;
 
-						if (set_pixel(pixel_x, pixel_y)) {
-							pixel_overwritten = true;
+						// Check if the pixel is being overwritten
+						if (set_pixel(pixelX, pixelY)) {
+							// Pixel was flipped (set to 0 after being 1), so set pixelOverwritten flag
+							pixelOverwritten = true;
 						}
 
-						draw_pixel(pixel_x, pixel_x);
+						// Draw the pixel as set (typically white)
+						draw_pixel(pixelX, pixelY);
 					}
 				}
 			}
 
-			return pixel_overwritten;
+			return pixelOverwritten;  // Return whether any pixel was overwritten
 		}
 
+		// Clear the screen (reset to black and reset pixelState)
 		void clear() {
 			SDL_RenderClear(renderer);
 
+			// Reset the pixelState array
 			for (int i = 0; i < SCREEN_WIDTH; ++i) {
 				for (int j = 0; j < SCREEN_HEIGHT; ++j) {
 					pixel_state[i][j] = false;
@@ -211,6 +344,7 @@ namespace chip_8 {
 			}
 		}
 
+		// Destructor: Clean up SDL resources
 		~screen() {
 			SDL_DestroyRenderer(renderer);
 			SDL_DestroyWindow(window);
@@ -230,6 +364,7 @@ namespace chip_8 {
 		uint8_t SP = 0; // stack pointer
 		uint16_t I = 0; // index register
 		uint8_t DT = 0; // delay timer
+		uint8_t ST = 0; // sound timer
 
 		memory sys_memory;
 		screen display;
@@ -239,6 +374,8 @@ namespace chip_8 {
 
 		cpu(const char *name): display(name), sys_memory() {
 			std::srand(std::time(nullptr));
+
+			load_fonts();
 		}
 
 		void load(const std::vector<uint8_t> program) {
@@ -247,21 +384,96 @@ namespace chip_8 {
 			}
 		}
 
+		void load_text(const std::vector<uint16_t>& program) {
+			if (PROG_START + program.size() * 2 > N_SYS_MEMORY) {
+				std::cerr << "Error: Not enough space to load instructions into memory!" << std::endl;
+				return;
+			}
+
+			sys_memory.data_pos = PROG_START + (program.size() * 2) + 1;
+			for (size_t i = 0; i < program.size(); ++i) {
+				uint16_t instruction = program[i];
+
+				uint8_t high_byte= (instruction >> 8) & 0xFF;
+				uint8_t low_byte= instruction & 0xFF;
+
+				*sys_memory[PROG_START + i * 2] = high_byte;
+				*sys_memory[PROG_START + i * 2 + 1] = low_byte;
+			}
+		}
+
+		void load_data(const std::vector<uint8_t>& data, uint32_t data_p) {
+			if (data_p != 0) {
+				sys_memory.data_pos = data_p;
+			}
+
+			for (uint32_t i = 0; i < data.size(); i++) {
+				*sys_memory[sys_memory.data_pos + i] = data[i];
+			}
+		}
+
+		void load_program(const std::string& filename) {
+			std::ifstream file(filename, std::ios::binary);
+
+			if (!file) {
+				throw std::runtime_error("Failed to open the file: " + filename);
+			}
+			
+			file.seekg(0, std::ios::end);
+			size_t file_size = file.tellg();
+			file.seekg(0, std::ios::beg);
+
+			if (file_size > (4096 - 0x200)) {
+				throw std::runtime_error("Program size exceeds memory capacity");
+			}
+
+			file.read(reinterpret_cast<char*>(sys_memory[0x200]), file_size);
+
+			if (!file) {
+				throw std::runtime_error("Error reading the file into memory");
+			}
+
+			file.close();
+		}
+
+		void load_fonts() {
+			//first 80 bytes usually reserved for internal interpreter
+			for (int i = 0; i < 80; ++i) {
+				*sys_memory[0x050 + i] = font_set[i];
+			}
+		}
+
+
 		void run() {
-			while (running) {
+			while (running && !input.quit) {
 				clr();
 				display.render_start();
+				input.update();
+				
 
 				cycle();
+
+				if (DT > 0) DT--;
+
 				log_status();
 
 				display.render_stop();
-				SDL_Delay(1000 * 5);
+				SDL_Delay(CYCLE_RATE);
 
 			}
 
 			
+			
+			/*
+			display.render_start();
 
+			display.set_pixel(32, 16);
+			display.set_pixel(31, 16);
+
+			display.render_stop();
+			
+			SDL_Delay(10000);
+			*/
 		}
 
 		void log_status() {
@@ -327,7 +539,7 @@ namespace chip_8 {
 
 				// jump to NNN
 			case 0x1: { 
-				uint8_t jmp = instruction & 0xFFF;
+				uint16_t jmp = GET_NIB3(instruction);
 				std::cout << "JMP: " << static_cast<int>( jmp) << std::endl;
 
 				PC = jmp;
@@ -379,6 +591,7 @@ namespace chip_8 {
 				break;
 			}
 
+			// "6XNN" set register X to NN
 			case 0x6: {
 				uint8_t Vx = GET_NIB(instruction, 1);
 				if (Vx > 16) { // invalid register, halt
@@ -390,19 +603,14 @@ namespace chip_8 {
 				break;
 			}
 
+			// "7XNN" add NN to register X
 			case 0x7: {
 
 				uint8_t Vx = GET_NIB(instruction, 1);
 				if (Vx > 16) { // invalid register, halt
 
 				}
-
-				uint16_t carry = V[Vx] + GET_NIB(instruction, 2) | GET_NIB(instruction, 3);
-
-				if (carry > 0xFF) V[0xF] = 1;
-				else              V[0xF] = 0;
-
-				V[Vx] = carry & 0xFF;
+				V[Vx] += (GET_NIB(instruction, 2) << 4) | GET_NIB(instruction, 3);
 
 				break;
 			}
@@ -471,35 +679,113 @@ namespace chip_8 {
 					break;
 
 				case 0xD: {
-					uint8_t Vx, Vy, n;
-					Vx = GET_NIB(instruction, 1);
-					Vy = GET_NIB(instruction, 2);
-					n = GET_NIB(instruction, 3);
+						uint8_t Vx, Vy, n;
+						Vx = GET_NIB(instruction, 1);
+						Vy = GET_NIB(instruction, 2);
+						n = GET_NIB(instruction, 3);
 
-					uint8_t x = V[Vx];
-					uint8_t y = V[Vy];
+						std::cout << "draw(" << static_cast<int>(Vx) << ", " <<
+							static_cast<int>(Vy) << ")\n";
 
-					for (uint8_t row = 0; row<n; row++) {
-						uint8_t sprite_byte = *sys_memory[I + row];
-						for (uint8_t col = 0; col < 8; col++) {
-							if ((sprite_byte >> (7 - col)) & 1) {
-								if (display.set_pixel(x + col, y + row))
-									V[0xF] = 1; // set collision flag that pixel was erased (collision)
+						uint8_t x = V[Vx];
+						uint8_t y = V[Vy];
+
+						for (uint8_t row = 0; row<n; row++) {
+							uint8_t sprite_byte = *sys_memory[I + row];
+							for (uint8_t col = 0; col < 8; col++) {
+								if ((sprite_byte >> (7 - col)) & 1) {
+									
+									if (display.set_pixel(x + col, y + row))
+										V[0xF] = 1; // set collision flag that pixel was erased (collision)
+								}
 							}
 						}
-					}
 
-					break;
-				}
+						break;
+					}
 
 				case 0xE:
 					switch (GET_NIB(instruction, 3)) {
 						case 0xE:
+							if (input.keys[V[GET_NIB(instruction, 1)]])
+								PC += 2;
+
 							break;
 						
 						case 0x1:
+							if (!input.keys[V[GET_NIB(instruction, 1)]])
+								PC += 2;
+							
 							break;
 					}
+
+					break;
+
+				case 0xF:
+					switch ((GET_NIB(instruction, 2) << 4) | GET_NIB(instruction, 3)) {
+						case 0x07:
+							V[GET_NIB(instruction, 1)] = DT;
+
+							break;
+
+						case 0x15:
+							DT = V[GET_NIB(instruction, 1)];
+							break;
+						
+						case 0x18:
+							ST = V[GET_NIB(instruction, 1)];
+							break;
+
+						// "FX0A" | block IO until keyboard is pressed, stored in Vx
+						case 0x0A:
+							input.io_block_update();
+						
+							for (uint32_t i = 0; i < N_KEYS; i++) {
+								if (input.keys[i]) {
+									V[GET_NIB(instruction, 1)] = i;
+								}
+							}
+
+							break;
+
+						case 0x1E:
+							I += V[GET_NIB(instruction, 1)];
+
+							break;
+
+						// Set index register to the location for sprite[Vx]
+						case 0x29:
+							I = 0x050 + (V[GET_NIB(instruction, 1)] * 5);
+							break;
+
+						case 0x33: {
+							const uint16_t reg_val = V[GET_NIB(instruction, 1)];
+							
+							*sys_memory[I]	   = reg_val / 100;
+							*sys_memory[I + 1] = (reg_val / 10) % 10;
+							*sys_memory[I + 2] = reg_val % 10;
+
+							break;
+						}
+
+						case 0x55: {
+							for (uint32_t i = 0; i < GET_NIB(instruction, 1); i++) {
+								*sys_memory[I + i] = V[i];
+							}
+							
+							break;
+						}
+
+						case 0x65: {
+							for (uint32_t i = 0; i < GET_NIB(instruction, 1); i++) {
+								V[i] = *sys_memory[I + i];
+							}
+
+							break;
+						}
+					}
+
+					break;
 			}
 		}
 
