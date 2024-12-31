@@ -13,7 +13,7 @@ Chip 8 implementation i wrote over the weekend, enjoy :)
 
 
 ```bash
-libsdl2-dev
+sudo apt install libsdl2-dev -y
 ```
 
 or <a href="https://github.com/libsdl-org/SDL/releases"> install SDL2 manually</a> and link manually
