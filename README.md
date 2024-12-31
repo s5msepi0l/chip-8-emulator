@@ -9,12 +9,22 @@ Chip 8 implementation i wrote over the weekend, enjoy :)
 - Simple command-line interface.
 - Renders graphics using a SDL 2
 
+## prerequisites
+
+
+```bash
+libsdl2-dev
+```
+
+or <a href="https://github.com/libsdl-org/SDL/releases"> install SDL2 manually</a> and link manually
+
 ## Usage
 
 To run the emulator, provide the path to a CHIP-8 program as an argument:
 
 ```bash
-chip8_emulator /path/to/program.ch8
+g++ -lSDL2 -o chip8
+./chip8 /path/to/program.ch8
 ```
 
 ## Note
